@@ -1,3 +1,4 @@
+
 name: Build Tricking Alpha APK
 
 on:
@@ -11,26 +12,59 @@ jobs:
     container:
       image: barichello/godot-ci:4.4.1
 
+    env:
+      HOME: /root
+      ANDROID_HOME: /usr/lib/android-sdk
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
-      - name: Prepare Godot
+      - name: Configure Android
         run: |
-          mkdir -p "$HOME/.config" "$HOME/.local/share/godot/export_templates"
-          cp -a /root/.config/godot "$HOME/.config/" 2>/dev/null || true
-          cp -a /root/.local/share/godot/export_templates/4.4.1.stable "$HOME/.local/share/godot/export_templates/" 
+          mkdir -p /root/.config/godot
+          SETTINGS=/root/.config/godot/editor_settings-4.4.tres
+
+          touch "$SETTINGS"
+
+          grep -q 'export/android/java_sdk_path' "$SETTINGS" || \
+            echo 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> "$SETTINGS"
+
+          grep -q 'export/android/android_sdk_path' "$SETTINGS" || \
+            echo 'export/android/android_sdk_path = "/usr/lib/android-sdk"' >> "$SETTINGS"
+
+          grep -q 'export/android/debug_keystore =' "$SETTINGS" || \
+            echo 'export/android/debug_keystore = "/root/debug.keystore"' >> "$SETTINGS"
+
+          grep -q 'export/android/debug_keystore_user' "$SETTINGS" || \
+            echo 'export/android/debug_keystore_user = "androiddebugkey"' >> "$SETTINGS"
+
+          grep -q 'export/android/debug_keystore_pass' "$SETTINGS" || \
+            echo 'export/android/debug_keystore_pass = "android"' >> "$SETTINGS"
+
+          echo "Java:"
+          java -version
+
+          echo "Android SDK:"
+          ls /usr/lib/android-sdk/build-tools/
+
+          echo "Keystore:"
+          ls -l /root/debug.keystore
 
       - name: Import project
-        run: godot --headless --editor --path . --quit
+        run: |
+          godot --headless --editor --path . --quit
 
       - name: Build APK
         run: |
           mkdir -p build
-          godot --headless --path . --export-debug "Android" build/TrickingAlpha.apk
+          godot --headless --verbose --path . --export-debug "Android" build/TrickingAlpha.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TrickingAlpha-APK
           path: build/TrickingAlpha.apk
+
